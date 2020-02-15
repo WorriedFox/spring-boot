@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,9 +19,12 @@ package org.springframework.boot.gradle.docs;
 import java.io.File;
 import java.io.IOException;
 
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.condition.DisabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.springframework.boot.gradle.junit.GradleMultiDslExtension;
 import org.springframework.boot.gradle.testkit.GradleBuild;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,41 +33,44 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for the documentation about running a Spring Boot application.
  *
  * @author Andy Wilkinson
+ * @author Jean-Baptiste Nizet
  */
-public class RunningDocumentationTests {
+@ExtendWith(GradleMultiDslExtension.class)
+class RunningDocumentationTests {
 
-	@Rule
-	public GradleBuild gradleBuild = new GradleBuild();
+	GradleBuild gradleBuild;
 
-	@Test
-	public void bootRunMain() throws IOException {
-		assertThat(this.gradleBuild.script("src/main/gradle/running/boot-run-main.gradle")
-				.build("configuredMainClass").getOutput())
-						.contains("com.example.ExampleApplication");
+	@TestTemplate
+	@DisabledForJreRange(min = JRE.JAVA_13)
+	void bootRunMain() throws IOException {
+		// Testing of convention mappings is flakey between 5.2 and 6.0 inclusive
+		// https://github.com/gradle/gradle/issues/11323
+		assertThat(this.gradleBuild.gradleVersion("6.1-rc-2").script("src/docs/gradle/running/boot-run-main")
+				.build("configuredMainClass").getOutput()).contains("com.example.ExampleApplication");
 	}
 
-	@Test
-	public void applicationPluginMainClassName() throws IOException {
-		assertThat(this.gradleBuild.script(
-				"src/main/gradle/running/application-plugin-main-class-name.gradle")
-				.build("configuredMainClass").getOutput())
-						.contains("com.example.ExampleApplication");
+	@TestTemplate
+	void applicationPluginMainClassName() {
+		assertThat(this.gradleBuild.script("src/docs/gradle/running/application-plugin-main-class-name")
+				.build("configuredMainClass").getOutput()).contains("com.example.ExampleApplication");
 	}
 
-	@Test
-	public void springBootDslMainClassName() throws IOException {
-		assertThat(this.gradleBuild
-				.script("src/main/gradle/running/spring-boot-dsl-main-class-name.gradle")
-				.build("configuredMainClass").getOutput())
-						.contains("com.example.ExampleApplication");
+	@TestTemplate
+	void springBootDslMainClassName() throws IOException {
+		assertThat(this.gradleBuild.script("src/docs/gradle/running/spring-boot-dsl-main-class-name")
+				.build("configuredMainClass").getOutput()).contains("com.example.ExampleApplication");
 	}
 
-	@Test
-	public void bootRunSourceResources() throws IOException {
-		assertThat(this.gradleBuild
-				.script("src/main/gradle/running/boot-run-source-resources.gradle")
-				.build("configuredClasspath").getOutput())
-						.contains(new File("src/main/resources").getPath());
+	@TestTemplate
+	void bootRunSourceResources() throws IOException {
+		assertThat(this.gradleBuild.script("src/docs/gradle/running/boot-run-source-resources")
+				.build("configuredClasspath").getOutput()).contains(new File("src/main/resources").getPath());
+	}
+
+	@TestTemplate
+	void bootRunDisableOptimizedLaunch() throws IOException {
+		assertThat(this.gradleBuild.script("src/docs/gradle/running/boot-run-disable-optimized-launch")
+				.build("optimizedLaunch").getOutput()).contains("false");
 	}
 
 }

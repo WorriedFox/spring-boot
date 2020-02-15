@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.junit.jupiter.api.extension.ExtendWith;
+
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.autoconfigure.OverrideAutoConfiguration;
@@ -35,11 +37,10 @@ import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.core.annotation.AliasFor;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.BootstrapWith;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 /**
- * Annotation that can be used in combination with {@code @RunWith(SpringRunner.class)}
- * for a typical JSON test. Can be used when a test focuses <strong>only</strong> on JSON
- * serialization.
+ * Annotation for a JSON test that focuses <strong>only</strong> on JSON serialization.
  * <p>
  * Using this annotation will disable full auto-configuration and instead apply only
  * configuration relevant to JSON tests (i.e. {@code @JsonComponent}, Jackson
@@ -49,6 +50,9 @@ import org.springframework.test.context.BootstrapWith;
  * {@link JacksonTester}, {@link JsonbTester} and {@link GsonTester} fields. More
  * fine-grained control can be provided via the
  * {@link AutoConfigureJsonTesters @AutoConfigureJsonTesters} annotation.
+ * <p>
+ * When using JUnit 4, this annotation should be used in combination with
+ * {@code @RunWith(SpringRunner.class)}.
  *
  * @author Phillip Webb
  * @author Artsiom Yudovin
@@ -62,8 +66,9 @@ import org.springframework.test.context.BootstrapWith;
 @Documented
 @Inherited
 @BootstrapWith(JsonTestContextBootstrapper.class)
+@ExtendWith(SpringExtension.class)
 @OverrideAutoConfiguration(enabled = false)
-@TypeExcludeFilters(JsonExcludeFilter.class)
+@TypeExcludeFilters(JsonTypeExcludeFilter.class)
 @AutoConfigureCache
 @AutoConfigureJson
 @AutoConfigureJsonTesters

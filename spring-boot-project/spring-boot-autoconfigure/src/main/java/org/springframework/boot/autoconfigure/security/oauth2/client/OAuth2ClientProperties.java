@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import org.springframework.util.StringUtils;
  * @author Phillip Webb
  * @author Artsiom Yudovin
  * @author MyeongHyeon Lee
+ * @since 2.0.0
  */
 @ConfigurationProperties(prefix = "spring.security.oauth2.client")
 public class OAuth2ClientProperties {
@@ -44,115 +45,31 @@ public class OAuth2ClientProperties {
 	/**
 	 * OAuth client registrations.
 	 */
-	private final Registration registration = new Registration();
+	private final Map<String, Registration> registration = new HashMap<>();
 
 	public Map<String, Provider> getProvider() {
 		return this.provider;
 	}
 
-	public Registration getRegistration() {
+	public Map<String, Registration> getRegistration() {
 		return this.registration;
 	}
 
 	@PostConstruct
 	public void validate() {
-		this.getRegistration().getLogin().values().forEach(this::validateRegistration);
-		this.getRegistration().getAuthorizationCode().values()
-				.forEach(this::validateRegistration);
+		this.getRegistration().values().forEach(this::validateRegistration);
 	}
 
-	private void validateRegistration(BaseClientRegistration registration) {
+	private void validateRegistration(Registration registration) {
 		if (!StringUtils.hasText(registration.getClientId())) {
 			throw new IllegalStateException("Client id must not be empty.");
 		}
 	}
 
+	/**
+	 * A single client registration.
+	 */
 	public static class Registration {
-
-		/**
-		 * OpenID Connect client registrations.
-		 */
-		private Map<String, LoginClientRegistration> login = new HashMap<>();
-
-		/**
-		 * OAuth2 authorization_code client registrations.
-		 */
-		private Map<String, AuthorizationCodeClientRegistration> authorizationCode = new HashMap<>();
-
-		public Map<String, LoginClientRegistration> getLogin() {
-			return this.login;
-		}
-
-		public void setLogin(Map<String, LoginClientRegistration> login) {
-			this.login = login;
-		}
-
-		public Map<String, AuthorizationCodeClientRegistration> getAuthorizationCode() {
-			return this.authorizationCode;
-		}
-
-		public void setAuthorizationCode(
-				Map<String, AuthorizationCodeClientRegistration> authorizationCode) {
-			this.authorizationCode = authorizationCode;
-		}
-
-	}
-
-	/**
-	 * A single client registration for OpenID Connect login.
-	 */
-	public static class LoginClientRegistration extends BaseClientRegistration {
-
-		/**
-		 * Redirect URI. May be left blank when using a pre-defined provider.
-		 */
-		private String redirectUri;
-
-		public String getRedirectUri() {
-			return this.redirectUri;
-		}
-
-		public void setRedirectUri(String redirectUri) {
-			this.redirectUri = redirectUri;
-		}
-
-		@Deprecated
-		public String getRedirectUriTemplate() {
-			return getRedirectUri();
-		}
-
-		@Deprecated
-		public void setRedirectUriTemplate(String redirectUri) {
-			setRedirectUri(redirectUri);
-		}
-
-	}
-
-	/**
-	 * A single client registration for OAuth2 authorization_code flow.
-	 */
-	public static class AuthorizationCodeClientRegistration
-			extends BaseClientRegistration {
-
-		/**
-		 * Redirect URI for the registration.
-		 */
-		private String redirectUri;
-
-		public String getRedirectUri() {
-			return this.redirectUri;
-		}
-
-		public void setRedirectUri(String redirectUri) {
-			this.redirectUri = redirectUri;
-		}
-
-	}
-
-	/**
-	 * Base class for a single client registration.
-	 */
-	public static class BaseClientRegistration {
 
 		/**
 		 * Reference to the OAuth 2.0 provider to use. May reference an element from the
@@ -181,6 +98,11 @@ public class OAuth2ClientProperties {
 		 * Authorization grant type. May be left blank when using a pre-defined provider.
 		 */
 		private String authorizationGrantType;
+
+		/**
+		 * Redirect URI. May be left blank when using a pre-defined provider.
+		 */
+		private String redirectUri;
 
 		/**
 		 * Authorization scopes. May be left blank when using a pre-defined provider.
@@ -230,6 +152,14 @@ public class OAuth2ClientProperties {
 
 		public void setAuthorizationGrantType(String authorizationGrantType) {
 			this.authorizationGrantType = authorizationGrantType;
+		}
+
+		public String getRedirectUri() {
+			return this.redirectUri;
+		}
+
+		public void setRedirectUri(String redirectUri) {
+			this.redirectUri = redirectUri;
 		}
 
 		public Set<String> getScope() {
@@ -284,7 +214,8 @@ public class OAuth2ClientProperties {
 		private String jwkSetUri;
 
 		/**
-		 * URI that an OpenID Connect Provider asserts as its Issuer Identifier.
+		 * URI that can either be an OpenID Connect discovery endpoint or an OAuth 2.0
+		 * Authorization Server Metadata endpoint defined by RFC 8414.
 		 */
 		private String issuerUri;
 

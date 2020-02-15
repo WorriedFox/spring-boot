@@ -5,14 +5,20 @@ inputs:
 outputs:
 - name: distribution-repository
 caches:
-- path: maven
 - path: gradle
+- path: embedmongo
+params:
+  BRANCH:
+  CI: true
+  GRADLE_ENTERPRISE_ACCESS_KEY:
+  GRADLE_ENTERPRISE_CACHE_USERNAME:
+  GRADLE_ENTERPRISE_CACHE_PASSWORD:
+  GRADLE_ENTERPRISE_URL: https://ge.spring.io
 run:
   path: bash
   args:
-    - -exc
+    - -ec
     - |
       source /docker-lib.sh
       start_docker
       ${PWD}/git-repo/ci/scripts/build-project.sh
-

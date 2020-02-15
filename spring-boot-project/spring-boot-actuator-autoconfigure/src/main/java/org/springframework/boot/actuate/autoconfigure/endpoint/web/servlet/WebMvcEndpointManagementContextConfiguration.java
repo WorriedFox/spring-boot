@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,11 +20,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.CorsEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration;
+import org.springframework.boot.actuate.autoconfigure.web.server.ManagementPortType;
 import org.springframework.boot.actuate.endpoint.ExposableEndpoint;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
+import org.springframework.boot.actuate.endpoint.http.ActuatorMediaType;
+import org.springframework.boot.actuate.endpoint.json.ActuatorJsonMapperProvider;
 import org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver;
 import org.springframework.boot.actuate.endpoint.web.EndpointMapping;
 import org.springframework.boot.actuate.endpoint.web.EndpointMediaTypes;
@@ -41,16 +46,25 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.AbstractJackson2HttpMessageConverter;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.DispatcherServlet;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * {@link ManagementContextConfiguration} for Spring MVC {@link Endpoint} concerns.
+ * {@link ManagementContextConfiguration @ManagementContextConfiguration} for Spring MVC
+ * {@link Endpoint @Endpoint} concerns.
  *
  * @author Andy Wilkinson
  * @author Phillip Webb
  * @since 2.0.0
  */
-@ManagementContextConfiguration
+@ManagementContextConfiguration(proxyBeanMethods = false)
 @ConditionalOnWebApplication(type = Type.SERVLET)
 @ConditionalOnClass(DispatcherServlet.class)
 @ConditionalOnBean({ DispatcherServlet.class, WebEndpointsSupplier.class })
@@ -59,37 +73,63 @@ public class WebMvcEndpointManagementContextConfiguration {
 
 	@Bean
 	@ConditionalOnMissingBean
-	public WebMvcEndpointHandlerMapping webEndpointServletHandlerMapping(
-			WebEndpointsSupplier webEndpointsSupplier,
-			ServletEndpointsSupplier servletEndpointsSupplier,
-			ControllerEndpointsSupplier controllerEndpointsSupplier,
+	public WebMvcEndpointHandlerMapping webEndpointServletHandlerMapping(WebEndpointsSupplier webEndpointsSupplier,
+			ServletEndpointsSupplier servletEndpointsSupplier, ControllerEndpointsSupplier controllerEndpointsSupplier,
 			EndpointMediaTypes endpointMediaTypes, CorsEndpointProperties corsProperties,
-			WebEndpointProperties webEndpointProperties) {
+			WebEndpointProperties webEndpointProperties, Environment environment) {
 		List<ExposableEndpoint<?>> allEndpoints = new ArrayList<>();
-		Collection<ExposableWebEndpoint> webEndpoints = webEndpointsSupplier
-				.getEndpoints();
+		Collection<ExposableWebEndpoint> webEndpoints = webEndpointsSupplier.getEndpoints();
 		allEndpoints.addAll(webEndpoints);
 		allEndpoints.addAll(servletEndpointsSupplier.getEndpoints());
 		allEndpoints.addAll(controllerEndpointsSupplier.getEndpoints());
-		EndpointMapping endpointMapping = new EndpointMapping(
-				webEndpointProperties.getBasePath());
-		return new WebMvcEndpointHandlerMapping(endpointMapping, webEndpoints,
-				endpointMediaTypes, corsProperties.toCorsConfiguration(),
-				new EndpointLinksResolver(allEndpoints,
-						webEndpointProperties.getBasePath()));
+		String basePath = webEndpointProperties.getBasePath();
+		EndpointMapping endpointMapping = new EndpointMapping(basePath);
+		boolean shouldRegisterLinksMapping = StringUtils.hasText(basePath)
+				|| ManagementPortType.get(environment).equals(ManagementPortType.DIFFERENT);
+		return new WebMvcEndpointHandlerMapping(endpointMapping, webEndpoints, endpointMediaTypes,
+				corsProperties.toCorsConfiguration(), new EndpointLinksResolver(allEndpoints, basePath),
+				shouldRegisterLinksMapping);
 	}
 
 	@Bean
 	@ConditionalOnMissingBean
 	public ControllerEndpointHandlerMapping controllerEndpointHandlerMapping(
-			ControllerEndpointsSupplier controllerEndpointsSupplier,
-			CorsEndpointProperties corsProperties,
+			ControllerEndpointsSupplier controllerEndpointsSupplier, CorsEndpointProperties corsProperties,
 			WebEndpointProperties webEndpointProperties) {
-		EndpointMapping endpointMapping = new EndpointMapping(
-				webEndpointProperties.getBasePath());
-		return new ControllerEndpointHandlerMapping(endpointMapping,
-				controllerEndpointsSupplier.getEndpoints(),
+		EndpointMapping endpointMapping = new EndpointMapping(webEndpointProperties.getBasePath());
+		return new ControllerEndpointHandlerMapping(endpointMapping, controllerEndpointsSupplier.getEndpoints(),
 				corsProperties.toCorsConfiguration());
+	}
+
+	@Configuration(proxyBeanMethods = false)
+	public static class JsonWebMvcConfigurer implements WebMvcConfigurer, Ordered {
+
+		private final ActuatorJsonMapperProvider actuatorJsonMapperProvider;
+
+		public JsonWebMvcConfigurer(ActuatorJsonMapperProvider objectMapperFactory) {
+			this.actuatorJsonMapperProvider = objectMapperFactory;
+		}
+
+		@Override
+		public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
+			converters.add(new ActuatorJsonHttpMessageConverter(this.actuatorJsonMapperProvider.getInstance()));
+		}
+
+		// WebMvcAutoConfiguration is ordered at 0
+		@Override
+		public int getOrder() {
+			return -1;
+		}
+
+	}
+
+	static class ActuatorJsonHttpMessageConverter extends AbstractJackson2HttpMessageConverter {
+
+		ActuatorJsonHttpMessageConverter(ObjectMapper objectMapper) {
+			super(objectMapper, MediaType.parseMediaType(ActuatorMediaType.V3_JSON),
+					MediaType.parseMediaType(ActuatorMediaType.V2_JSON));
+		}
+
 	}
 
 }

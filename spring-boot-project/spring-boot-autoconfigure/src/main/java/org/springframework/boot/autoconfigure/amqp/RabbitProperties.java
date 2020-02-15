@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.springframework.amqp.core.AcknowledgeMode;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.CacheMode;
+import org.springframework.amqp.rabbit.connection.CachingConnectionFactory.ConfirmType;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.convert.DurationUnit;
 import org.springframework.util.CollectionUtils;
@@ -38,6 +39,8 @@ import org.springframework.util.StringUtils;
  * @author Josh Thornhill
  * @author Gary Russell
  * @author Artsiom Yudovin
+ * @author Franjo Zilic
+ * @since 1.0.0
  */
 @ConfigurationProperties(prefix = "spring.rabbitmq")
 public class RabbitProperties {
@@ -85,14 +88,19 @@ public class RabbitProperties {
 	private Duration requestedHeartbeat;
 
 	/**
-	 * Whether to enable publisher confirms.
+	 * Number of channels per connection requested by the client. Use 0 for unlimited.
 	 */
-	private boolean publisherConfirms;
+	private int requestedChannelMax = 2047;
 
 	/**
 	 * Whether to enable publisher returns.
 	 */
 	private boolean publisherReturns;
+
+	/**
+	 * Type of publisher confirms to use.
+	 */
+	private ConfirmType publisherConfirmType;
 
 	/**
 	 * Connection timeout. Set it to zero to wait forever.
@@ -186,7 +194,7 @@ public class RabbitProperties {
 	private List<Address> parseAddresses(String addresses) {
 		List<Address> parsedAddresses = new ArrayList<>();
 		for (String address : StringUtils.commaDelimitedListToStringArray(addresses)) {
-			parsedAddresses.add(new Address(address));
+			parsedAddresses.add(new Address(address, getSsl().isEnabled()));
 		}
 		return parsedAddresses;
 	}
@@ -272,12 +280,12 @@ public class RabbitProperties {
 		this.requestedHeartbeat = requestedHeartbeat;
 	}
 
-	public boolean isPublisherConfirms() {
-		return this.publisherConfirms;
+	public int getRequestedChannelMax() {
+		return this.requestedChannelMax;
 	}
 
-	public void setPublisherConfirms(boolean publisherConfirms) {
-		this.publisherConfirms = publisherConfirms;
+	public void setRequestedChannelMax(int requestedChannelMax) {
+		this.requestedChannelMax = requestedChannelMax;
 	}
 
 	public boolean isPublisherReturns() {
@@ -290,6 +298,14 @@ public class RabbitProperties {
 
 	public Duration getConnectionTimeout() {
 		return this.connectionTimeout;
+	}
+
+	public void setPublisherConfirmType(ConfirmType publisherConfirmType) {
+		this.publisherConfirmType = publisherConfirmType;
+	}
+
+	public ConfirmType getPublisherConfirmType() {
+		return this.publisherConfirmType;
 	}
 
 	public void setConnectionTimeout(Duration connectionTimeout) {
@@ -308,7 +324,7 @@ public class RabbitProperties {
 		return this.template;
 	}
 
-	public static class Ssl {
+	public class Ssl {
 
 		/**
 		 * Whether to enable SSL support.
@@ -350,8 +366,33 @@ public class RabbitProperties {
 		 */
 		private String algorithm;
 
+		/**
+		 * Whether to enable server side certificate validation.
+		 */
+		private boolean validateServerCertificate = true;
+
+		/**
+		 * Whether to enable hostname verification.
+		 */
+		private boolean verifyHostname = true;
+
 		public boolean isEnabled() {
 			return this.enabled;
+		}
+
+		/**
+		 * Returns whether SSL is enabled from the first address, or the configured ssl
+		 * enabled flag if no addresses have been set.
+		 * @return whether ssl is enabled
+		 * @see #setAddresses(String)
+		 * @see #isEnabled()
+		 */
+		public boolean determineEnabled() {
+			if (CollectionUtils.isEmpty(RabbitProperties.this.parsedAddresses)) {
+				return isEnabled();
+			}
+			Address address = RabbitProperties.this.parsedAddresses.get(0);
+			return address.determineSslEnabled(isEnabled());
 		}
 
 		public void setEnabled(boolean enabled) {
@@ -412,6 +453,22 @@ public class RabbitProperties {
 
 		public void setAlgorithm(String sslAlgorithm) {
 			this.algorithm = sslAlgorithm;
+		}
+
+		public boolean isValidateServerCertificate() {
+			return this.validateServerCertificate;
+		}
+
+		public void setValidateServerCertificate(boolean validateServerCertificate) {
+			this.validateServerCertificate = validateServerCertificate;
+		}
+
+		public boolean getVerifyHostname() {
+			return this.verifyHostname;
+		}
+
+		public void setVerifyHostname(boolean verifyHostname) {
+			this.verifyHostname = verifyHostname;
 		}
 
 	}
@@ -551,8 +608,8 @@ public class RabbitProperties {
 		private AcknowledgeMode acknowledgeMode;
 
 		/**
-		 * Number of messages to be handled in a single request. It should be greater than
-		 * or equal to the transaction size (if used).
+		 * Maximum number of unacknowledged messages that can be outstanding at each
+		 * consumer.
 		 */
 		private Integer prefetch;
 
@@ -611,6 +668,8 @@ public class RabbitProperties {
 			this.idleEventInterval = idleEventInterval;
 		}
 
+		public abstract boolean isMissingQueuesFatal();
+
 		public ListenerRetry getRetry() {
 			return this.retry;
 		}
@@ -633,11 +692,17 @@ public class RabbitProperties {
 		private Integer maxConcurrency;
 
 		/**
-		 * Number of messages to be processed in a transaction. That is, the number of
-		 * messages between acks. For best results, it should be less than or equal to the
-		 * prefetch count.
+		 * Batch size, expressed as the number of physical messages, to be used by the
+		 * container.
 		 */
-		private Integer transactionSize;
+		private Integer batchSize;
+
+		/**
+		 * Whether to fail if the queues declared by the container are not available on
+		 * the broker and/or whether to stop the container if one or more queues are
+		 * deleted at runtime.
+		 */
+		private boolean missingQueuesFatal = true;
 
 		public Integer getConcurrency() {
 			return this.concurrency;
@@ -655,12 +720,21 @@ public class RabbitProperties {
 			this.maxConcurrency = maxConcurrency;
 		}
 
-		public Integer getTransactionSize() {
-			return this.transactionSize;
+		public Integer getBatchSize() {
+			return this.batchSize;
 		}
 
-		public void setTransactionSize(Integer transactionSize) {
-			this.transactionSize = transactionSize;
+		public void setBatchSize(Integer batchSize) {
+			this.batchSize = batchSize;
+		}
+
+		@Override
+		public boolean isMissingQueuesFatal() {
+			return this.missingQueuesFatal;
+		}
+
+		public void setMissingQueuesFatal(boolean missingQueuesFatal) {
+			this.missingQueuesFatal = missingQueuesFatal;
 		}
 
 	}
@@ -675,12 +749,27 @@ public class RabbitProperties {
 		 */
 		private Integer consumersPerQueue;
 
+		/**
+		 * Whether to fail if the queues declared by the container are not available on
+		 * the broker.
+		 */
+		private boolean missingQueuesFatal = false;
+
 		public Integer getConsumersPerQueue() {
 			return this.consumersPerQueue;
 		}
 
 		public void setConsumersPerQueue(Integer consumersPerQueue) {
 			this.consumersPerQueue = consumersPerQueue;
+		}
+
+		@Override
+		public boolean isMissingQueuesFatal() {
+			return this.missingQueuesFatal;
+		}
+
+		public void setMissingQueuesFatal(boolean missingQueuesFatal) {
+			this.missingQueuesFatal = missingQueuesFatal;
 		}
 
 	}
@@ -718,7 +807,7 @@ public class RabbitProperties {
 		 * Name of the default queue to receive messages from when none is specified
 		 * explicitly.
 		 */
-		private String queue;
+		private String defaultReceiveQueue;
 
 		public Retry getRetry() {
 			return this.retry;
@@ -764,12 +853,12 @@ public class RabbitProperties {
 			this.routingKey = routingKey;
 		}
 
-		public String getQueue() {
-			return this.queue;
+		public String getDefaultReceiveQueue() {
+			return this.defaultReceiveQueue;
 		}
 
-		public void setQueue(String queue) {
-			this.queue = queue;
+		public void setDefaultReceiveQueue(String defaultReceiveQueue) {
+			this.defaultReceiveQueue = defaultReceiveQueue;
 		}
 
 	}
@@ -866,6 +955,10 @@ public class RabbitProperties {
 
 		private static final int DEFAULT_PORT = 5672;
 
+		private static final String PREFIX_AMQP_SECURE = "amqps://";
+
+		private static final int DEFAULT_PORT_SECURE = 5671;
+
 		private String host;
 
 		private int port;
@@ -876,17 +969,24 @@ public class RabbitProperties {
 
 		private String virtualHost;
 
-		private Address(String input) {
+		private Boolean secureConnection;
+
+		private Address(String input, boolean sslEnabled) {
 			input = input.trim();
 			input = trimPrefix(input);
 			input = parseUsernameAndPassword(input);
 			input = parseVirtualHost(input);
-			parseHostAndPort(input);
+			parseHostAndPort(input, sslEnabled);
 		}
 
 		private String trimPrefix(String input) {
+			if (input.startsWith(PREFIX_AMQP_SECURE)) {
+				this.secureConnection = true;
+				return input.substring(PREFIX_AMQP_SECURE.length());
+			}
 			if (input.startsWith(PREFIX_AMQP)) {
-				input = input.substring(PREFIX_AMQP.length());
+				this.secureConnection = false;
+				return input.substring(PREFIX_AMQP.length());
 			}
 			return input;
 		}
@@ -917,16 +1017,20 @@ public class RabbitProperties {
 			return input;
 		}
 
-		private void parseHostAndPort(String input) {
+		private void parseHostAndPort(String input, boolean sslEnabled) {
 			int portIndex = input.indexOf(':');
 			if (portIndex == -1) {
 				this.host = input;
-				this.port = DEFAULT_PORT;
+				this.port = (determineSslEnabled(sslEnabled)) ? DEFAULT_PORT_SECURE : DEFAULT_PORT;
 			}
 			else {
 				this.host = input.substring(0, portIndex);
-				this.port = Integer.valueOf(input.substring(portIndex + 1));
+				this.port = Integer.parseInt(input.substring(portIndex + 1));
 			}
+		}
+
+		private boolean determineSslEnabled(boolean sslEnabled) {
+			return (this.secureConnection != null) ? this.secureConnection : sslEnabled;
 		}
 
 	}

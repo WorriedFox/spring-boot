@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -49,7 +49,7 @@ public class BasicJsonParser extends AbstractJsonParser {
 
 	private List<Object> parseListInternal(String json) {
 		List<Object> list = new ArrayList<>();
-		json = trimLeadingCharacter(trimTrailingCharacter(json, ']'), '[');
+		json = trimLeadingCharacter(trimTrailingCharacter(json, ']'), '[').trim();
 		for (String value : tokenize(json)) {
 			list.add(parseInternal(value));
 		}
@@ -97,7 +97,7 @@ public class BasicJsonParser extends AbstractJsonParser {
 
 	private Map<String, Object> parseMapInternal(String json) {
 		Map<String, Object> map = new LinkedHashMap<>();
-		json = trimLeadingCharacter(trimTrailingCharacter(json, '}'), '{');
+		json = trimLeadingCharacter(trimTrailingCharacter(json, '}'), '{').trim();
 		for (String pair : tokenize(json)) {
 			String[] values = StringUtils.trimArrayElements(StringUtils.split(pair, ":"));
 			String key = trimLeadingCharacter(trimTrailingCharacter(values[0], '"'), '"');
@@ -113,9 +113,16 @@ public class BasicJsonParser extends AbstractJsonParser {
 		int inObject = 0;
 		int inList = 0;
 		boolean inValue = false;
+		boolean inEscape = false;
 		StringBuilder build = new StringBuilder();
 		while (index < json.length()) {
 			char current = json.charAt(index);
+			if (inEscape) {
+				build.append(current);
+				index++;
+				inEscape = false;
+				continue;
+			}
 			if (current == '{') {
 				inObject++;
 			}
@@ -135,13 +142,16 @@ public class BasicJsonParser extends AbstractJsonParser {
 				list.add(build.toString());
 				build.setLength(0);
 			}
+			else if (current == '\\') {
+				inEscape = true;
+			}
 			else {
 				build.append(current);
 			}
 			index++;
 		}
 		if (build.length() > 0) {
-			list.add(build.toString());
+			list.add(build.toString().trim());
 		}
 		return list;
 	}

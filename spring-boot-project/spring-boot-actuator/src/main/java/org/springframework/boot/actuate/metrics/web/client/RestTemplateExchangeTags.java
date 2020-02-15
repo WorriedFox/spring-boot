@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,9 +18,11 @@ package org.springframework.boot.actuate.metrics.web.client;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.regex.Pattern;
 
 import io.micrometer.core.instrument.Tag;
 
+import org.springframework.boot.actuate.metrics.http.Outcome;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.util.StringUtils;
@@ -32,9 +34,13 @@ import org.springframework.web.client.RestTemplate;
  *
  * @author Andy Wilkinson
  * @author Jon Schneider
+ * @author Nishant Raut
+ * @author Brian Clozel
  * @since 2.0.0
  */
 public final class RestTemplateExchangeTags {
+
+	private static final Pattern STRIP_URI_PATTERN = Pattern.compile("^https?://[^/]+/");
 
 	private RestTemplateExchangeTags() {
 	}
@@ -69,7 +75,7 @@ public final class RestTemplateExchangeTags {
 	}
 
 	private static String stripUri(String uri) {
-		return uri.replaceAll("^https?://[^/]+/", "");
+		return STRIP_URI_PATTERN.matcher(uri).replaceAll("");
 	}
 
 	private static String ensureLeadingSlash(String url) {
@@ -110,6 +116,25 @@ public final class RestTemplateExchangeTags {
 			host = "none";
 		}
 		return Tag.of("clientName", host);
+	}
+
+	/**
+	 * Creates an {@code outcome} {@code Tag} derived from the
+	 * {@link ClientHttpResponse#getRawStatusCode() status} of the given {@code response}.
+	 * @param response the response
+	 * @return the outcome tag
+	 * @since 2.2.0
+	 */
+	public static Tag outcome(ClientHttpResponse response) {
+		try {
+			if (response != null) {
+				return Outcome.forStatus(response.getRawStatusCode()).asTag();
+			}
+		}
+		catch (IOException ex) {
+			// Continue
+		}
+		return Outcome.UNKNOWN.asTag();
 	}
 
 }

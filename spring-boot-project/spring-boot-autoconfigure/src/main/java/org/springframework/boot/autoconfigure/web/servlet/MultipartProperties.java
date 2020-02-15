@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,10 +20,8 @@ import javax.servlet.MultipartConfigElement;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.PropertyMapper;
-import org.springframework.boot.convert.DataSizeUnit;
 import org.springframework.boot.web.servlet.MultipartConfigFactory;
 import org.springframework.util.unit.DataSize;
-import org.springframework.util.unit.DataUnit;
 
 /**
  * Properties to be used in configuring a {@link MultipartConfigElement}.
@@ -45,7 +43,7 @@ import org.springframework.util.unit.DataUnit;
  * @author Josh Long
  * @author Toshiaki Maki
  * @author Stephane Nicoll
- * @since 1.1.0
+ * @since 2.0.0
  */
 @ConfigurationProperties(prefix = "spring.servlet.multipart", ignoreUnknownFields = false)
 public class MultipartProperties {
@@ -63,14 +61,12 @@ public class MultipartProperties {
 	/**
 	 * Max file size.
 	 */
-	@DataSizeUnit(DataUnit.MEGABYTES)
-	private DataSize maxFileSize = DataSize.ofMegaBytes(1);
+	private DataSize maxFileSize = DataSize.ofMegabytes(1);
 
 	/**
 	 * Max request size.
 	 */
-	@DataSizeUnit(DataUnit.MEGABYTES)
-	private DataSize maxRequestSize = DataSize.ofMegaBytes(10);
+	private DataSize maxRequestSize = DataSize.ofMegabytes(10);
 
 	/**
 	 * Threshold after which files are written to disk.

@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,8 +15,6 @@
  */
 
 package org.springframework.boot.test.autoconfigure.restdocs;
-
-import java.util.List;
 
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.specification.RequestSpecification;
@@ -47,11 +45,11 @@ import org.springframework.restdocs.webtestclient.WebTestClientRestDocumentation
  * @author Roman Zaynetdinov
  * @since 1.4.0
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnWebApplication
 public class RestDocsAutoConfiguration {
 
-	@Configuration
+	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(MockMvcRestDocumentation.class)
 	@ConditionalOnWebApplication(type = Type.SERVLET)
 	@EnableConfigurationProperties(RestDocsProperties.class)
@@ -59,64 +57,51 @@ public class RestDocsAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public MockMvcRestDocumentationConfigurer restDocsMockMvcConfigurer(
-				ObjectProvider<List<RestDocsMockMvcConfigurationCustomizer>> configurationCustomizerProvider,
+		MockMvcRestDocumentationConfigurer restDocsMockMvcConfigurer(
+				ObjectProvider<RestDocsMockMvcConfigurationCustomizer> configurationCustomizers,
 				RestDocumentationContextProvider contextProvider) {
 			MockMvcRestDocumentationConfigurer configurer = MockMvcRestDocumentation
 					.documentationConfiguration(contextProvider);
-			List<RestDocsMockMvcConfigurationCustomizer> configurationCustomizers = configurationCustomizerProvider
-					.getIfAvailable();
-			if (configurationCustomizers != null) {
-				configurationCustomizers
-						.forEach((configurationCustomizer) -> configurationCustomizer
-								.customize(configurer));
-			}
+			configurationCustomizers.orderedStream()
+					.forEach((configurationCustomizer) -> configurationCustomizer.customize(configurer));
 			return configurer;
 		}
 
 		@Bean
-		public RestDocsMockMvcBuilderCustomizer restDocumentationConfigurer(
-				RestDocsProperties properties,
+		RestDocsMockMvcBuilderCustomizer restDocumentationConfigurer(RestDocsProperties properties,
 				MockMvcRestDocumentationConfigurer configurer,
 				ObjectProvider<RestDocumentationResultHandler> resultHandler) {
-			return new RestDocsMockMvcBuilderCustomizer(properties, configurer,
-					resultHandler.getIfAvailable());
+			return new RestDocsMockMvcBuilderCustomizer(properties, configurer, resultHandler.getIfAvailable());
 		}
 
 	}
 
-	@Configuration
-	@ConditionalOnClass({ RequestSpecification.class,
-			RestAssuredRestDocumentation.class })
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass({ RequestSpecification.class, RestAssuredRestDocumentation.class })
 	@EnableConfigurationProperties(RestDocsProperties.class)
 	static class RestDocsRestAssuredConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public RequestSpecification restDocsRestAssuredConfigurer(
-				ObjectProvider<List<RestDocsRestAssuredConfigurationCustomizer>> configurationCustomizerProvider,
+		RequestSpecification restDocsRestAssuredConfigurer(
+				ObjectProvider<RestDocsRestAssuredConfigurationCustomizer> configurationCustomizers,
 				RestDocumentationContextProvider contextProvider) {
 			RestAssuredRestDocumentationConfigurer configurer = RestAssuredRestDocumentation
 					.documentationConfiguration(contextProvider);
-			List<RestDocsRestAssuredConfigurationCustomizer> configurationCustomizers = configurationCustomizerProvider
-					.getIfAvailable();
-			if (configurationCustomizers != null) {
-				configurationCustomizers
-						.forEach((configurationCustomizer) -> configurationCustomizer
-								.customize(configurer));
-			}
+			configurationCustomizers.orderedStream()
+					.forEach((configurationCustomizer) -> configurationCustomizer.customize(configurer));
 			return new RequestSpecBuilder().addFilter(configurer).build();
 		}
 
 		@Bean
-		public RestDocsRestAssuredBuilderCustomizer restAssuredBuilderCustomizer(
-				RestDocsProperties properties, RequestSpecification configurer) {
+		RestDocsRestAssuredBuilderCustomizer restAssuredBuilderCustomizer(RestDocsProperties properties,
+				RequestSpecification configurer) {
 			return new RestDocsRestAssuredBuilderCustomizer(properties, configurer);
 		}
 
 	}
 
-	@Configuration
+	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(WebTestClientRestDocumentation.class)
 	@ConditionalOnWebApplication(type = Type.REACTIVE)
 	@EnableConfigurationProperties(RestDocsProperties.class)
@@ -124,24 +109,18 @@ public class RestDocsAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
-		public WebTestClientRestDocumentationConfigurer restDocsWebTestClientConfigurer(
-				ObjectProvider<List<RestDocsWebTestClientConfigurationCustomizer>> configurationCustomizerProvider,
+		WebTestClientRestDocumentationConfigurer restDocsWebTestClientConfigurer(
+				ObjectProvider<RestDocsWebTestClientConfigurationCustomizer> configurationCustomizers,
 				RestDocumentationContextProvider contextProvider) {
 			WebTestClientRestDocumentationConfigurer configurer = WebTestClientRestDocumentation
 					.documentationConfiguration(contextProvider);
-			List<RestDocsWebTestClientConfigurationCustomizer> configurationCustomizers = configurationCustomizerProvider
-					.getIfAvailable();
-			if (configurationCustomizers != null) {
-				configurationCustomizers
-						.forEach((configurationCustomizer) -> configurationCustomizer
-								.customize(configurer));
-			}
+			configurationCustomizers.orderedStream()
+					.forEach((configurationCustomizer) -> configurationCustomizer.customize(configurer));
 			return configurer;
 		}
 
 		@Bean
-		public RestDocsWebTestClientBuilderCustomizer restDocumentationConfigurer(
-				RestDocsProperties properties,
+		RestDocsWebTestClientBuilderCustomizer restDocumentationConfigurer(RestDocsProperties properties,
 				WebTestClientRestDocumentationConfigurer configurer) {
 			return new RestDocsWebTestClientBuilderCustomizer(properties, configurer);
 		}

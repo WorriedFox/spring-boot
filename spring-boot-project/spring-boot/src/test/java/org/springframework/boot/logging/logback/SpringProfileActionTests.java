@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,8 @@ import ch.qos.logback.core.ContextBase;
 import ch.qos.logback.core.joran.action.Action;
 import ch.qos.logback.core.joran.spi.ActionException;
 import ch.qos.logback.core.joran.spi.InterpretationContext;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.xml.sax.Attributes;
 
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.verify;
  *
  * @author Andy Wilkinson
  */
-public class SpringProfileActionTests {
+class SpringProfileActionTests {
 
 	private final Environment environment = mock(Environment.class);
 
@@ -50,24 +50,22 @@ public class SpringProfileActionTests {
 
 	private final Context context = new ContextBase();
 
-	private final InterpretationContext interpretationContext = new InterpretationContext(
-			this.context, null);
+	private final InterpretationContext interpretationContext = new InterpretationContext(this.context, null);
 
 	private final Attributes attributes = mock(Attributes.class);
 
-	@Before
-	public void setUp() {
+	@BeforeEach
+	void setUp() {
 		this.action.setContext(this.context);
 	}
 
 	@Test
-	public void environmentIsQueriedWithProfileFromNameAttribute()
-			throws ActionException {
+	void environmentIsQueriedWithProfileFromNameAttribute() throws ActionException {
 		given(this.attributes.getValue(Action.NAME_ATTRIBUTE)).willReturn("dev");
 		this.action.begin(this.interpretationContext, null, this.attributes);
 		ArgumentCaptor<Profiles> profiles = ArgumentCaptor.forClass(Profiles.class);
 		verify(this.environment).acceptsProfiles(profiles.capture());
-		List<String> profileNames = new ArrayList<String>();
+		List<String> profileNames = new ArrayList<>();
 		profiles.getValue().matches((profile) -> {
 			profileNames.add(profile);
 			return false;
@@ -76,13 +74,12 @@ public class SpringProfileActionTests {
 	}
 
 	@Test
-	public void environmentIsQueriedWithMultipleProfilesFromCommaSeparatedNameAttribute()
-			throws ActionException {
+	void environmentIsQueriedWithMultipleProfilesFromCommaSeparatedNameAttribute() throws ActionException {
 		given(this.attributes.getValue(Action.NAME_ATTRIBUTE)).willReturn("dev,qa");
 		this.action.begin(this.interpretationContext, null, this.attributes);
 		ArgumentCaptor<Profiles> profiles = ArgumentCaptor.forClass(Profiles.class);
 		verify(this.environment).acceptsProfiles(profiles.capture());
-		List<String> profileNames = new ArrayList<String>();
+		List<String> profileNames = new ArrayList<>();
 		profiles.getValue().matches((profile) -> {
 			profileNames.add(profile);
 			return false;
@@ -91,14 +88,13 @@ public class SpringProfileActionTests {
 	}
 
 	@Test
-	public void environmentIsQueriedWithResolvedValueWhenNameAttributeUsesAPlaceholder()
-			throws ActionException {
+	void environmentIsQueriedWithResolvedValueWhenNameAttributeUsesAPlaceholder() throws ActionException {
 		given(this.attributes.getValue(Action.NAME_ATTRIBUTE)).willReturn("${profile}");
 		this.context.putProperty("profile", "dev");
 		this.action.begin(this.interpretationContext, null, this.attributes);
 		ArgumentCaptor<Profiles> profiles = ArgumentCaptor.forClass(Profiles.class);
 		verify(this.environment).acceptsProfiles(profiles.capture());
-		List<String> profileNames = new ArrayList<String>();
+		List<String> profileNames = new ArrayList<>();
 		profiles.getValue().matches((profile) -> {
 			profileNames.add(profile);
 			return false;
@@ -107,16 +103,15 @@ public class SpringProfileActionTests {
 	}
 
 	@Test
-	public void environmentIsQueriedWithResolvedValuesFromCommaSeparatedNameNameAttributeWithPlaceholders()
+	void environmentIsQueriedWithResolvedValuesFromCommaSeparatedNameNameAttributeWithPlaceholders()
 			throws ActionException {
-		given(this.attributes.getValue(Action.NAME_ATTRIBUTE))
-				.willReturn("${profile1},${profile2}");
+		given(this.attributes.getValue(Action.NAME_ATTRIBUTE)).willReturn("${profile1},${profile2}");
 		this.context.putProperty("profile1", "dev");
 		this.context.putProperty("profile2", "qa");
 		this.action.begin(this.interpretationContext, null, this.attributes);
 		ArgumentCaptor<Profiles> profiles = ArgumentCaptor.forClass(Profiles.class);
 		verify(this.environment).acceptsProfiles(profiles.capture());
-		List<String> profileNames = new ArrayList<String>();
+		List<String> profileNames = new ArrayList<>();
 		profiles.getValue().matches((profile) -> {
 			profileNames.add(profile);
 			return false;

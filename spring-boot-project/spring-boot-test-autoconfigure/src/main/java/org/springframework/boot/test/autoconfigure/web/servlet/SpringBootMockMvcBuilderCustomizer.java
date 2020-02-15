@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,10 +30,10 @@ import org.apache.commons.logging.LogFactory;
 
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.boot.web.servlet.AbstractFilterRegistrationBean;
 import org.springframework.boot.web.servlet.DelegatingFilterProxyRegistrationBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.servlet.RegistrationBean;
-import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.boot.web.servlet.ServletContextInitializerBeans;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -104,33 +104,18 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 			return new LoggingLinesWriter();
 		}
 		return new SystemLinesWriter(this.print);
-
 	}
 
 	private void addFilters(ConfigurableMockMvcBuilder<?> builder) {
-		FilterRegistrationBeans initializers = new FilterRegistrationBeans(this.context);
-		for (ServletContextInitializer initializer : initializers) {
-			if (initializer instanceof FilterRegistrationBean) {
-				addFilter(builder, (FilterRegistrationBean<?>) initializer);
-			}
-			if (initializer instanceof DelegatingFilterProxyRegistrationBean) {
-				addFilter(builder, (DelegatingFilterProxyRegistrationBean) initializer);
-			}
-		}
+		FilterRegistrationBeans registrations = new FilterRegistrationBeans(this.context);
+		registrations.stream().map(AbstractFilterRegistrationBean.class::cast)
+				.filter(AbstractFilterRegistrationBean::isEnabled)
+				.forEach((registration) -> addFilter(builder, registration));
 	}
 
-	private void addFilter(ConfigurableMockMvcBuilder<?> builder,
-			FilterRegistrationBean<?> registration) {
-		addFilter(builder, registration.getFilter(), registration.getUrlPatterns());
-	}
-
-	private void addFilter(ConfigurableMockMvcBuilder<?> builder,
-			DelegatingFilterProxyRegistrationBean registration) {
-		addFilter(builder, registration.getFilter(), registration.getUrlPatterns());
-	}
-
-	private void addFilter(ConfigurableMockMvcBuilder<?> builder, Filter filter,
-			Collection<String> urls) {
+	private void addFilter(ConfigurableMockMvcBuilder<?> builder, AbstractFilterRegistrationBean<?> registration) {
+		Filter filter = registration.getFilter();
+		Collection<String> urls = registration.getUrlPatterns();
 		if (urls.isEmpty()) {
 			builder.addFilters(filter);
 		}
@@ -188,7 +173,7 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 				super(new Printer());
 			}
 
-			public void write(LinesWriter writer) {
+			void write(LinesWriter writer) {
 				writer.write(((Printer) getPrinter()).getLines());
 			}
 
@@ -210,7 +195,7 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 					this.lines.add(String.format("%17s = %s", label, value));
 				}
 
-				public List<String> getLines() {
+				List<String> getLines() {
 					return this.lines;
 				}
 
@@ -240,32 +225,35 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 
 		private final LinesWriter delegate;
 
-		private final List<String> lines = new ArrayList<>();
+		private final ThreadLocal<List<String>> lines = ThreadLocal.withInitial(ArrayList::new);
 
 		DeferredLinesWriter(WebApplicationContext context, LinesWriter delegate) {
 			Assert.state(context instanceof ConfigurableApplicationContext,
 					"A ConfigurableApplicationContext is required for printOnlyOnFailure");
-			((ConfigurableApplicationContext) context).getBeanFactory()
-					.registerSingleton(BEAN_NAME, this);
+			((ConfigurableApplicationContext) context).getBeanFactory().registerSingleton(BEAN_NAME, this);
 			this.delegate = delegate;
 		}
 
 		@Override
 		public void write(List<String> lines) {
-			this.lines.addAll(lines);
+			this.lines.get().addAll(lines);
 		}
 
-		public void writeDeferredResult() {
-			this.delegate.write(this.lines);
+		void writeDeferredResult() {
+			this.delegate.write(this.lines.get());
 		}
 
-		public static DeferredLinesWriter get(ApplicationContext applicationContext) {
+		static DeferredLinesWriter get(ApplicationContext applicationContext) {
 			try {
 				return applicationContext.getBean(BEAN_NAME, DeferredLinesWriter.class);
 			}
 			catch (NoSuchBeanDefinitionException ex) {
 				return null;
 			}
+		}
+
+		void clear() {
+			this.lines.get().clear();
 		}
 
 	}
@@ -275,8 +263,7 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 	 */
 	private static class LoggingLinesWriter implements LinesWriter {
 
-		private static final Log logger = LogFactory
-				.getLog("org.springframework.test.web.servlet.result");
+		private static final Log logger = LogFactory.getLog("org.springframework.test.web.servlet.result");
 
 		@Override
 		public void write(List<String> lines) {
@@ -323,24 +310,19 @@ public class SpringBootMockMvcBuilderCustomizer implements MockMvcBuilderCustomi
 	private static class FilterRegistrationBeans extends ServletContextInitializerBeans {
 
 		FilterRegistrationBeans(ListableBeanFactory beanFactory) {
-			super(beanFactory, FilterRegistrationBean.class,
-					DelegatingFilterProxyRegistrationBean.class);
+			super(beanFactory, FilterRegistrationBean.class, DelegatingFilterProxyRegistrationBean.class);
 		}
 
 		@Override
 		protected void addAdaptableBeans(ListableBeanFactory beanFactory) {
-			addAsRegistrationBean(beanFactory, Filter.class,
-					new FilterRegistrationBeanAdapter());
+			addAsRegistrationBean(beanFactory, Filter.class, new FilterRegistrationBeanAdapter());
 		}
 
-		private static class FilterRegistrationBeanAdapter
-				implements RegistrationBeanAdapter<Filter> {
+		private static class FilterRegistrationBeanAdapter implements RegistrationBeanAdapter<Filter> {
 
 			@Override
-			public RegistrationBean createRegistrationBean(String name, Filter source,
-					int totalNumberOfSourceBeans) {
-				FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<>(
-						source);
+			public RegistrationBean createRegistrationBean(String name, Filter source, int totalNumberOfSourceBeans) {
+				FilterRegistrationBean<Filter> bean = new FilterRegistrationBean<>(source);
 				bean.setName(name);
 				return bean;
 			}

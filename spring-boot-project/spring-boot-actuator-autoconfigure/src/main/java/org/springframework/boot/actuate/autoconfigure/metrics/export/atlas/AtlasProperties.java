@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,7 +22,8 @@ import org.springframework.boot.actuate.autoconfigure.metrics.export.properties.
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * {@link ConfigurationProperties} for configuring Atlas metrics export.
+ * {@link ConfigurationProperties @ConfigurationProperties} for configuring Atlas metrics
+ * export.
  *
  * @author Jon Schneider
  * @author Stephane Nicoll
@@ -30,6 +31,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "management.metrics.export.atlas")
 public class AtlasProperties extends StepRegistryProperties {
+
+	/**
+	 * Number of threads to use with the metrics publishing scheduler.
+	 */
+	private Integer numThreads = 4;
 
 	/**
 	 * URI of the Atlas server.
@@ -66,6 +72,16 @@ public class AtlasProperties extends StepRegistryProperties {
 	 * URI for the Atlas LWC endpoint to evaluate the data for a subscription.
 	 */
 	private String evalUri = "http://localhost:7101/lwc/api/v1/evaluate";
+
+	@Override
+	public Integer getNumThreads() {
+		return this.numThreads;
+	}
+
+	@Override
+	public void setNumThreads(Integer numThreads) {
+		this.numThreads = numThreads;
+	}
 
 	public String getUri() {
 		return this.uri;

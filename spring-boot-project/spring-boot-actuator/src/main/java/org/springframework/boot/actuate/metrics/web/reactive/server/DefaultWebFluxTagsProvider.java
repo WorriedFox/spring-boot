@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2017 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,11 +31,20 @@ import org.springframework.web.server.ServerWebExchange;
  */
 public class DefaultWebFluxTagsProvider implements WebFluxTagsProvider {
 
+	private final boolean ignoreTrailingSlash;
+
+	public DefaultWebFluxTagsProvider() {
+		this(false);
+	}
+
+	public DefaultWebFluxTagsProvider(boolean ignoreTrailingSlash) {
+		this.ignoreTrailingSlash = ignoreTrailingSlash;
+	}
+
 	@Override
-	public Iterable<Tag> httpRequestTags(ServerWebExchange exchange,
-			Throwable exception) {
-		return Arrays.asList(WebFluxTags.method(exchange), WebFluxTags.uri(exchange),
-				WebFluxTags.exception(exception), WebFluxTags.status(exchange));
+	public Iterable<Tag> httpRequestTags(ServerWebExchange exchange, Throwable exception) {
+		return Arrays.asList(WebFluxTags.method(exchange), WebFluxTags.uri(exchange, this.ignoreTrailingSlash),
+				WebFluxTags.exception(exception), WebFluxTags.status(exchange), WebFluxTags.outcome(exchange));
 	}
 
 }
